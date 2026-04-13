@@ -18,11 +18,12 @@ import io.ktor.server.request.receive
 import io.ktor.server.request.receiveMultipart
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import model.ApiResponse
-import model.Archetype
-import model.Character
-import model.Role
-import model.User
+import model.responsewrapper.ApiResponse
+import model.character.Archetype
+import model.character.Character
+import model.dtos.RelationAdd
+import model.enums.Role
+import model.user.User
 import service.AuditService
 import service.CharacterService
 import service.UserService
@@ -123,6 +124,14 @@ fun Application.configureRouting() {
             call.respond(status = HttpStatusCode.OK, message = ApiResponse(success = true, data = stats))
         }
 
+        get("relationships/{name}"){
+            val charName = call.parameters["name"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+
+            val relations = RelationshipService.getRelationships(charName)
+            call.respond(ApiResponse(success = true, data = relations))
+        }
+
+
         authenticate ("auth-jwt"){
 
             get("/audit-logs"){
@@ -137,6 +146,17 @@ fun Application.configureRouting() {
                     )
                 )
 
+            }
+
+            post("/relationships"){
+                val request = call.receive<RelationAdd>()
+                val success = RelationshipService.addRelationship(request)
+
+                if(success)
+                    call.respond(ApiResponse<Unit>(success = true, message = "Fate has been updated!" ))
+
+                else
+                    call.respond(status = HttpStatusCode.NotFound, message = ApiResponse<Unit>(success = false, message = "Fated to be unfated lmao🤷"))
             }
 
             post ("/character"){
@@ -219,7 +239,7 @@ fun Application.configureRouting() {
                     }
                     call.respond(
                         status = HttpStatusCode.OK,
-                        message = ApiResponse<Unit>(success = true, message = "Updated model.Character Into Da Bible!",)
+                        message = ApiResponse<Unit>(success = true, message = "Updated model.character.Character Into Da Bible!",)
                     )
                 }
                 else

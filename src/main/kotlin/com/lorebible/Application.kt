@@ -4,7 +4,7 @@ import io.ktor.server.application.*
 import io.ktor.server.cio.EngineMain
 import io.ktor.server.plugins.requestvalidation.RequestValidation
 import io.ktor.server.plugins.requestvalidation.ValidationResult
-import model.Character
+import model.character.Character
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.plugins.requestvalidation.RequestValidationException
 import io.ktor.server.plugins.statuspages.StatusPages

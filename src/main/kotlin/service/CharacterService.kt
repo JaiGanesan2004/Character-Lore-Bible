@@ -2,9 +2,11 @@ package service
 
 import database.AbilityTable
 import database.CharacterTable
-import model.ArchetypeCountDTO
-import model.Character
-import model.Role
+import database.RelationshipTable
+import model.dtos.ArchetypeCountDTO
+import model.character.Character
+import model.enums.RelationType
+import model.enums.Role
 import org.jetbrains.exposed.sql.Count
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -104,6 +106,22 @@ object CharacterService {
             }
         }
 
+    }
+
+    fun addRelationship(sourceName: String, targetName: String, type: RelationType): Boolean = transaction {
+        val sourceId = CharacterTable.select { CharacterTable.name eq sourceName }
+            .singleOrNull()?.get(CharacterTable.id) ?: return@transaction false
+
+        val targetId = CharacterTable.select { CharacterTable.name eq targetName }
+            .singleOrNull()?.get(CharacterTable.id) ?: return@transaction false
+
+        RelationshipTable.insert {
+            it[characterId] = sourceId
+            it[this.targetId] = targetId
+            it[this.relationType] = type
+        }
+
+        true
     }
 
 

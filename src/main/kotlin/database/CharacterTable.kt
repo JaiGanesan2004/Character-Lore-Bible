@@ -1,7 +1,7 @@
 package database
 
-import model.Archetype
-import model.Role
+import model.character.Archetype
+import model.enums.Role
 import org.jetbrains.exposed.sql.Table
 
 object CharacterTable : Table("characters") {

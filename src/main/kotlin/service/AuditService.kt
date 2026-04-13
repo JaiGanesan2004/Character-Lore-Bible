@@ -2,7 +2,7 @@ package service
 
 import database.AuditLogTable
 import database.UserTable
-import model.AuditEntry
+import model.audit.AuditEntry
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select

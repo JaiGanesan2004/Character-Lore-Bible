@@ -1,4 +1,4 @@
-package model
+package model.audit
 
 import kotlinx.serialization.Serializable
 

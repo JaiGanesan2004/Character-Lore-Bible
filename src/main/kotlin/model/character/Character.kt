@@ -1,6 +1,8 @@
-package model
+package model.character
 
 import kotlinx.serialization.Serializable
+import model.character.Archetype
+import model.enums.Role
 
 @Serializable
 data class Character(

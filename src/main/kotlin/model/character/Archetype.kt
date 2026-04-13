@@ -1,4 +1,4 @@
-package model
+package model.character
 
 enum class Archetype {
     THE_HERO,

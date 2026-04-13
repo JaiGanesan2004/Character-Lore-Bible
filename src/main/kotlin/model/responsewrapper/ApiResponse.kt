@@ -1,4 +1,4 @@
-package model
+package model.responsewrapper
 
 import kotlinx.serialization.Serializable
 
