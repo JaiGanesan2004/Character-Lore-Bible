@@ -10,5 +10,9 @@ data class Character(
     val powerLevel: Int?,
     val abilities: List<String>,
     val createdAt: String? = null,
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val archetype: Archetype?,
+    val race: String? = null,
+    val age: Int? = null,
+    val lore: String? = null
 )

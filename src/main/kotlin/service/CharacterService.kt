@@ -2,12 +2,15 @@ package service
 
 import database.AbilityTable
 import database.CharacterTable
+import model.ArchetypeCountDTO
 import model.Character
 import model.Role
+import org.jetbrains.exposed.sql.Count
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.StdOutSqlLogger
 import org.jetbrains.exposed.sql.addLogger
+import org.jetbrains.exposed.sql.count
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.lowerCase
@@ -47,6 +50,17 @@ object CharacterService {
         row.toCharacter(abilitiesList)
     }
 
+    fun getByArchetypeCounts(): List<ArchetypeCountDTO> = transaction {
+        val countColumn = CharacterTable.id.count()
+
+        CharacterTable
+            .slice(CharacterTable.archetype, countColumn)
+            .selectAll()
+            .groupBy(CharacterTable.archetype)
+            .map { it.toArcheType(countColumn)
+            }
+    }
+
     //CREATE
     fun getAll(limit: Int, offset: Long, search: String?): List<Character> = transaction {
         addLogger(StdOutSqlLogger)
@@ -76,6 +90,10 @@ object CharacterService {
             it[role] = c.role
             it[powerLevel] = c.powerLevel ?: 0
             it[createdAt] = LocalDateTime.now().toString()
+            it[archetype] = c.archetype
+            it[race] = c.race
+            it[age] = c.age
+            it[lore] = c.lore
         } get CharacterTable.id
 
         //2. Insert each ability along with the character ID
@@ -87,6 +105,8 @@ object CharacterService {
         }
 
     }
+
+
 
     fun update(name: String, character: Character): Boolean = transaction {
         //First we find the target record
@@ -136,6 +156,15 @@ object CharacterService {
         powerLevel = this[CharacterTable.powerLevel],
         abilities = abilities,
         createdAt = this[CharacterTable.createdAt],
-        imageUrl = this[CharacterTable.imageUrl]
+        imageUrl = this[CharacterTable.imageUrl],
+        archetype = this[CharacterTable.archetype],
+        race = this[CharacterTable.race],
+        age = this[CharacterTable.age],
+        lore = this[CharacterTable.lore]
+    )
+
+    fun ResultRow.toArcheType(countAlias: Count) = ArchetypeCountDTO(
+        archetype = this[CharacterTable.archetype],
+        count = this[countAlias]
     )
 }

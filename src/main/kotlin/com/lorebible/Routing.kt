@@ -19,6 +19,7 @@ import io.ktor.server.request.receiveMultipart
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import model.ApiResponse
+import model.Archetype
 import model.Character
 import model.Role
 import model.User
@@ -117,6 +118,11 @@ fun Application.configureRouting() {
 
         }
 
+        get("/stats/archetype"){
+            val stats = CharacterService.getByArchetypeCounts()
+            call.respond(status = HttpStatusCode.OK, message = ApiResponse(success = true, data = stats))
+        }
+
         authenticate ("auth-jwt"){
 
             get("/audit-logs"){
@@ -139,7 +145,12 @@ fun Application.configureRouting() {
                 var role = Role.MAGE
                 var powerLevel = 0
                 var abilities = listOf<String>()
+                var age = 0
+                var race: String? =  null
+                var archetype = Archetype.THE_GUARDIAN
+                var lore: String? =  null
                 var fileName = ""
+
 
                 val uploadDir = File("uploads")
                 if(!uploadDir.exists()) uploadDir.mkdirs()
@@ -157,6 +168,14 @@ fun Application.configureRouting() {
                                 }
                                 "powerLevel" -> powerLevel = part.value.toIntOrNull() ?: 0
                                 "abilities" -> abilities = part.value.split(",")
+                                "race" -> race = part.value
+                                "age" -> age = part.value.toIntOrNull() ?: 0
+                                "archetype" ->  archetype = try{
+                                    Archetype.valueOf(part.value.uppercase())
+                                } catch(e: Exception){
+                                    Archetype.THE_ANTI_HERO
+                                }
+                                "lore" -> lore = part.value
                             }
                         }
 
@@ -177,7 +196,7 @@ fun Application.configureRouting() {
                 //We are getting the file name here to add in DB
                 val imageUrl = if( fileName.isNotEmpty()) "/uploads/$fileName" else null
 
-                CharacterService.addCharacter(Character(name = name, role = role, powerLevel = powerLevel, abilities = abilities, imageUrl = imageUrl))
+                CharacterService.addCharacter(Character(name = name, role = role, powerLevel = powerLevel, abilities = abilities, imageUrl = imageUrl, race = race, age = age, archetype = archetype, lore = lore))
 
                 val userName = call.getUsername()
 
