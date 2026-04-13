@@ -1,0 +1,230 @@
+openapi: 3.0.3
+
+info:
+  title: Lore Bible API
+  description: API for managing users, characters, and audit logs
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+
+paths:
+
+  /register:
+    post:
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        "201":
+          description: User registered successfully
+        "409":
+          description: Username already exists
+
+  /login:
+    post:
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        "200":
+          description: Login successful (returns JWT token)
+        "401":
+          description: Invalid credentials
+
+  /characters:
+    get:
+      summary: Get all characters
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            example: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            example: 10
+        - name: search
+          in: query
+          schema:
+            type: string
+            example: Kael
+      responses:
+        "200":
+          description: List of characters
+
+  /character/{name}:
+    get:
+      summary: Get character by name
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Character found
+        "404":
+          description: Character not found
+
+    put:
+      summary: Update character
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Character'
+      responses:
+        "200":
+          description: Character updated
+        "404":
+          description: Character not found
+
+    delete:
+      summary: Delete character
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Character deleted
+        "404":
+          description: Character not found
+
+  /characters/role/{roleName}:
+    get:
+      summary: Get characters by role
+      parameters:
+        - name: roleName
+          in: path
+          required: true
+          schema:
+            type: string
+            example: MAGE
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: size
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Characters by role
+        "400":
+          description: Invalid role
+
+  /character:
+    post:
+      summary: Create a new character (with image upload)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - name
+                - role
+              properties:
+                name:
+                  type: string
+                  example: Kael
+                role:
+                  type: string
+                  example: MAGE
+                powerLevel:
+                  type: integer
+                  example: 9000
+                abilities:
+                  type: string
+                  example: fire,ice,wind
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Character created
+
+  /audit-logs:
+    get:
+      summary: Get audit logs for logged-in user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Audit logs retrieved
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+
+    User:
+      type: object
+      properties:
+        username:
+          type: string
+          example: kael
+        password:
+          type: string
+          example: secret123
+
+    Character:
+      type: object
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+        powerLevel:
+          type: integer
+        abilities:
+          type: array
+          items:
+            type: string
+        imageUrl:
+          type: string
+
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          nullable: true
