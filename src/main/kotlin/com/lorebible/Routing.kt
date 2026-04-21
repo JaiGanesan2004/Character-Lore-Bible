@@ -2,6 +2,9 @@ package LoreBible.com.lorebible
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import io.ktor.http.ContentDisposition
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
@@ -26,6 +29,8 @@ import model.enums.Role
 import model.user.User
 import service.AuditService
 import service.CharacterService
+import service.ExportService
+import service.RedisCacheManager
 import service.UserService
 import java.io.File
 
@@ -146,6 +151,42 @@ fun Application.configureRouting() {
                     )
                 )
 
+            }
+
+            get("/character/{name}/export") {
+                val name = call.parameters["name"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+
+                // 1. Try to get from Redis first (Super Fast!)
+                var character = RedisCacheManager.getCharacter(name)
+
+                // 2. If Redis is empty, go to the Database (Slower)
+                if (character == null) {
+                    character = CharacterService.getByName(name)
+
+                    // 3. Save it to Redis so next time is instant
+                    if (character != null) {
+                        RedisCacheManager.setCharacter(character)
+                    }
+                }
+
+                // 4. Handle Not Found
+                if (character == null) {
+                    return@get call.respond(HttpStatusCode.NotFound, "Character Not Found")
+                }
+
+                // 5. Build and Send the File
+                val markdown = ExportService.characterToMarkdown(character)
+                    ?: "# Error\nCharacter data could not be generated, Beep Boop!"
+
+                call.response.header(
+                    HttpHeaders.ContentDisposition,
+                    ContentDisposition.Attachment.withParameter(
+                        ContentDisposition.Parameters.FileName,
+                        "${name.replace(" ", "_")}.md"
+                    ).toString()
+                )
+
+                call.respondText(markdown, ContentType.parse("text/markdown"))
             }
 
             post("/relationships"){

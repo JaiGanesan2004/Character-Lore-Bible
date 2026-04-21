@@ -17,11 +17,11 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
-    DatabaseFactory.init()
-    configureSerialization()
-    configureMonitoring()
-    configureSecurity()
-    configureRouting()
+    DatabaseFactory.init() //Da Tables creator
+    configureSerialization() //Da Translator
+    configureMonitoring() //Da Logging team
+    configureSecurity() //Da Bouncer
+    configureRouting() //Da Menu
 
     install(RequestValidation){
         validate <Character> { character ->
@@ -36,6 +36,9 @@ fun Application.module() {
         }
     }
 
+
+    //This one is an exception handler that determines what response
+    //to be sent when the a specific exception is met
     install(StatusPages){
         exception<RequestValidationException> {call, cause ->
             //Catches the "Invalid" result that we wrote and sends it back to the client

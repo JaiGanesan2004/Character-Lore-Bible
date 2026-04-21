@@ -42,4 +42,10 @@ dependencies {
 
     implementation("io.ktor:ktor-server-swagger:$ktor_version")
     implementation("io.ktor:ktor-server-openapi:$ktor_version")
+    // Redis Client (Jedis) - Using the latest 2026 stable version
+    implementation("redis.clients:jedis:5.1.0")
+
+    // For turning your Character objects into JSON strings for Redis
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
 }
