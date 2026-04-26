@@ -31,4 +31,10 @@ object UserService {
 
         BCrypt.checkpw(user.password, hashedPasswd)
     }
+
+    fun getUserId(username: String): Int? = transaction {
+        UserTable.select { UserTable.username eq username }
+            .map { it[UserTable.id] }
+            .singleOrNull()
+    }
 }

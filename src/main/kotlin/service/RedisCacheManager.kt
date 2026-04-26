@@ -2,33 +2,36 @@ package service
 
 import model.character.Character
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.decodeFromString
 import redis.clients.jedis.JedisPool
 
 object RedisCacheManager {
     //Connects to local Redis
-    private val pool = JedisPool("localhost", 6379)
+    val redisHost = System.getenv("REDIS_HOST") ?: "localhost"
+    val redisPort = System.getenv("REDIS_PORT")?.toInt() ?: 6379
+    private val pool = JedisPool(redisHost, redisPort)
+
+    private fun key(userId: Int, charId: Int) = "char:$userId:$charId"
 
     fun setCharacter(character: Character){
         pool.resource.use {jedis ->
             val json = Json.encodeToString(character)
-            jedis.set("char:${character.name}", json)
+            val chacheKey = key(character.userId, character.id)
 
-            jedis.expire("char:${character.name}", 3600)
+            jedis.set(chacheKey, json)
+            jedis.expire(chacheKey, 3600)
         }
     }
 
-    fun getCharacter(name: String): Character? {
+    fun getCharacter(charId: Int, userId: Int): Character? {
         pool.resource.use { jedis ->
-            val json = jedis.get("char:$name") ?: return null
+            val json = jedis.get(key(userId, charId)) ?: return null
             return Json.decodeFromString<Character>(json)
         }
     }
 
-    fun evict(name: String){
+    fun evict(charId: Int, userId: Int){
         pool.resource.use {
-            it.del("char:$name")
+            it.del(key(userId = userId, charId = charId))
         }
     }
 

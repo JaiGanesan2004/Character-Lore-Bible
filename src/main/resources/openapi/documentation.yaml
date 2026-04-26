@@ -2,7 +2,7 @@ openapi: 3.0.3
 
 info:
   title: Lore Bible API
-  description: API for managing users, characters, and audit logs
+  description: API for managing users, characters, feats, relationships, and audit logs
   version: 1.0.0
 
 servers:
@@ -27,7 +27,7 @@ paths:
 
   /login:
     post:
-      summary: Login user
+      summary: Login user and receive JWT
       requestBody:
         required: true
         content:
@@ -36,13 +36,15 @@ paths:
               $ref: '#/components/schemas/User'
       responses:
         "200":
-          description: Login successful (returns JWT token)
+          description: Login successful (JWT returned)
         "401":
           description: Invalid credentials
 
   /characters:
     get:
-      summary: Get all characters
+      summary: Get all characters (paginated + search)
+      security:
+        - bearerAuth: []
       parameters:
         - name: page
           in: query
@@ -58,42 +60,79 @@ paths:
           in: query
           schema:
             type: string
-            example: Kael
       responses:
         "200":
           description: List of characters
 
-  /character/{name}:
+  /character:
+    post:
+      summary: Create a new character (multipart upload)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, role]
+              properties:
+                name:
+                  type: string
+                role:
+                  type: string
+                powerLevel:
+                  type: integer
+                abilities:
+                  type: string
+                race:
+                  type: string
+                age:
+                  type: integer
+                archetype:
+                  type: string
+                lore:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Character created
+
+  /character/{id}:
     get:
-      summary: Get character by name
+      summary: Get character by ID
+      security:
+        - bearerAuth: []
       parameters:
-        - name: name
+        - name: id
           in: path
           required: true
           schema:
-            type: string
+            type: integer
       responses:
         "200":
           description: Character found
         "404":
           description: Character not found
 
-    put:
-      summary: Update character
+    patch:
+      summary: Update character partially
       security:
         - bearerAuth: []
       parameters:
-        - name: name
+        - name: id
           in: path
           required: true
           schema:
-            type: string
+            type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Character'
+              $ref: '#/components/schemas/CharacterUpdateRequest'
       responses:
         "200":
           description: Character updated
@@ -105,11 +144,11 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - name: name
+        - name: id
           in: path
           required: true
           schema:
-            type: string
+            type: integer
       responses:
         "200":
           description: Character deleted
@@ -119,6 +158,8 @@ paths:
   /characters/role/{roleName}:
     get:
       summary: Get characters by role
+      security:
+        - bearerAuth: []
       parameters:
         - name: roleName
           in: path
@@ -140,43 +181,116 @@ paths:
         "400":
           description: Invalid role
 
-  /character:
+  /stats/archetype:
+    get:
+      summary: Get archetype counts
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Archetype statistics
+
+  /relationships:
     post:
-      summary: Create a new character (with image upload)
+      summary: Add relationship between characters
       security:
         - bearerAuth: []
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
-              type: object
-              required:
-                - name
-                - role
-              properties:
-                name:
-                  type: string
-                  example: Kael
-                role:
-                  type: string
-                  example: MAGE
-                powerLevel:
-                  type: integer
-                  example: 9000
-                abilities:
-                  type: string
-                  example: fire,ice,wind
-                file:
-                  type: string
-                  format: binary
+              $ref: '#/components/schemas/RelationAdd'
       responses:
-        "201":
-          description: Character created
+        "200":
+          description: Relationship added
+
+  /relationships/{id}:
+    get:
+      summary: Get relationships for a character
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Relationship list
+
+  /character/{id}/feats:
+    get:
+      summary: Get feats of a character
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Feats list
+
+    put:
+      summary: Upsert feats for character
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatRequest'
+      responses:
+        "200":
+          description: Feats updated
+
+  /character/{id}/feats/{category}:
+    delete:
+      summary: Delete feats by category
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Feat deleted
+
+  /character/{id}/export:
+    get:
+      summary: Export character as markdown
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Markdown file returned
 
   /audit-logs:
     get:
-      summary: Get audit logs for logged-in user
+      summary: Get audit logs for user
       security:
         - bearerAuth: []
       responses:
@@ -198,12 +312,10 @@ components:
       properties:
         username:
           type: string
-          example: kael
         password:
           type: string
-          example: secret123
 
-    Character:
+    CharacterUpdateRequest:
       type: object
       properties:
         name:
@@ -218,13 +330,29 @@ components:
             type: string
         imageUrl:
           type: string
+        race:
+          type: string
+        age:
+          type: integer
+        archetype:
+          type: string
+        lore:
+          type: string
 
-    ApiResponse:
+    FeatRequest:
       type: object
       properties:
-        success:
-          type: boolean
-        message:
+        category:
           type: string
-        data:
-          nullable: true
+        description:
+          type: string
+
+    RelationAdd:
+      type: object
+      properties:
+        sourceId:
+          type: integer
+        targetId:
+          type: integer
+        type:
+          type: string

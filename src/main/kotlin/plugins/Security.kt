@@ -17,6 +17,7 @@ import io.ktor.server.auth.jwt.*
                 verifier(
                     JWT.require(Algorithm.HMAC256(jwtSecret))
                         .withAudience(jwtAudience)
+                        .withIssuer(jwtIssuer)
                         .build()
                 )
 

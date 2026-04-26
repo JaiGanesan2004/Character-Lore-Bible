@@ -2,10 +2,12 @@ package database
 
 import model.character.Archetype
 import model.enums.Role
+import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.Table
 
 object CharacterTable : Table("characters") {
     val id = integer("id").autoIncrement()
+    val userId = reference("user_id", UserTable.id, onDelete = ReferenceOption.CASCADE)
     val name = varchar("name", 250)
     val role = enumerationByName("role", 50, Role::class)
     val powerLevel = integer("powerlevel").default(0)
@@ -21,4 +23,5 @@ object CharacterTable : Table("characters") {
     val imageUrl = varchar("image_url", 255).nullable()
 
     override val primaryKey = PrimaryKey(id)
+
 }

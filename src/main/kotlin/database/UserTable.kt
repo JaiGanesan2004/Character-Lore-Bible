@@ -8,4 +8,8 @@ object UserTable : Table("users") {
     val hashword = varchar("password_hash", 255)
 
     override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex(username)
+    }
 }

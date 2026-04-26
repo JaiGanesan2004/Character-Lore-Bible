@@ -17,35 +17,43 @@ kotlin {
 }
 
 dependencies {
+    // Standard Ktor 3.x modules
     implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.server.call.logging)
     implementation(libs.ktor.server.cio)
     implementation(libs.logback.classic)
+
+    // Test dependencies
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit)
 
-    // Database logic
+    // Database logic (Exposed)
     implementation("org.jetbrains.exposed:exposed-core:0.41.1")
     implementation("org.jetbrains.exposed:exposed-dao:0.41.1")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.41.1")
+    implementation("org.postgresql:postgresql:42.7.2")
 
-// SQLite Driver
-    implementation("org.xerial:sqlite-jdbc:3.42.0.0")
-    implementation("io.ktor:ktor-server-call-logging:2.3.12")
-    implementation("io.ktor:ktor-server-request-validation:2.3.12")
-    implementation("io.ktor:ktor-server-status-pages:2.3.12")
-    implementation("io.ktor:ktor-server-auth:${ktor_version}")
-    implementation("io.ktor:ktor-server-auth-jwt:${ktor_version}")
+    // Auth & Security (USE THE VARIABLE VERSION)
+    implementation("io.ktor:ktor-server-auth:$ktor_version")
+    implementation("io.ktor:ktor-server-auth-jwt:$ktor_version")
+    implementation("io.ktor:ktor-server-status-pages:$ktor_version")
+    implementation("io.ktor:ktor-server-request-validation:$ktor_version")
     implementation("org.mindrot:jbcrypt:0.4")
 
+    // Utils (CRITICAL for asStream)
+    implementation("io.ktor:ktor-utils:$ktor_version")
+    implementation("io.ktor:ktor-io:$ktor_version") // Add this one too!
+
+    // Documentation & Cache
     implementation("io.ktor:ktor-server-swagger:$ktor_version")
     implementation("io.ktor:ktor-server-openapi:$ktor_version")
-    // Redis Client (Jedis) - Using the latest 2026 stable version
     implementation("redis.clients:jedis:5.1.0")
-
-    // For turning your Character objects into JSON strings for Redis
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
+    implementation("io.github.cdimascio:dotenv-kotlin:6.4.1")
+
+    testImplementation("com.h2database:h2:2.2.224")
+    testImplementation("io.ktor:ktor-client-content-negotiation:${ktor_version}")
 }

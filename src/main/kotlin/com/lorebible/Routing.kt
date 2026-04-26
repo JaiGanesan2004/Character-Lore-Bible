@@ -1,20 +1,21 @@
-package LoreBible.com.lorebible
+package com.lorebible
 
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
+import exception.BadRequestException
+import exception.UnauthorizedException
 import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
-import io.ktor.http.content.streamProvider
+import io.ktor.utils.io.jvm.javaio.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
-import io.ktor.server.http.content.files
-import io.ktor.server.http.content.static
+import io.ktor.server.http.content.staticFiles
 import io.ktor.server.plugins.openapi.openAPI
 import io.ktor.server.plugins.swagger.swaggerUI
 import io.ktor.server.request.receive
@@ -24,15 +25,21 @@ import io.ktor.server.routing.*
 import model.responsewrapper.ApiResponse
 import model.character.Archetype
 import model.character.Character
+import model.dtos.CharacterUpdateRequest
+import model.dtos.FeatRequest
 import model.dtos.RelationAdd
+import model.enums.FeatLevel
 import model.enums.Role
 import model.user.User
 import service.AuditService
 import service.CharacterService
 import service.ExportService
+import service.FeatServices
 import service.RedisCacheManager
+import service.RelationshipService
 import service.UserService
 import java.io.File
+import java.util.Date
 
 fun Application.configureRouting() {
     routing {
@@ -40,13 +47,13 @@ fun Application.configureRouting() {
         swaggerUI(path = "swagger", swaggerFile = "openapi/documentation.yaml")
         openAPI(path = "openapi", swaggerFile = "openapi/documentation.yaml")
 
-        static ("/uploads"){
-            files("uploads")
-        }
+        staticFiles("/uploads", File("uploads"))
+
 
         val jwtSecret = environment.config.property("jwt.secret").getString()
         val jwtIssuer = environment.config.property("jwt.issuer").getString()
         val jwtAudience = environment.config.property("jwt.audience").getString()
+        val jwtExpiration = environment.config.property("jwt.expiration").getString()
 
         post("/register"){
             val userRequest = call.receive<User>()
@@ -63,12 +70,15 @@ fun Application.configureRouting() {
             val isValid = UserService.login(loginRequest)
 
             if(isValid){
+                val currentDate = System.currentTimeMillis()
+
                 val token = JWT.create()
                     .withAudience(jwtAudience)
                     .withIssuer(jwtIssuer)
                     .withClaim("username", loginRequest.username)
+                    .withIssuedAt(Date(currentDate))
+                    .withExpiresAt(Date(currentDate + jwtExpiration.toInt()))
                     .sign(Algorithm.HMAC256(jwtSecret))
-
 
                 call.respond(status = HttpStatusCode.OK, message = ApiResponse(success = true, data = mapOf("token" to token)))
             }else{
@@ -76,92 +86,131 @@ fun Application.configureRouting() {
             }
         }
 
-
-        get("/characters"){
-            //Extracting parameter with default here.
-            val page = call.parameters["page"]?.toIntOrNull() ?: 1
-            val size = call.parameters["size"]?.toIntOrNull() ?: 10
-            val search = call.parameters["search"]
-
-            //Calculate offset: (Page 1 starts at 0, page 2 starts at 10, etc...)
-            val offset = getOffset(page, size)
-
-            val characters = CharacterService.getAll(limit = size, offset = offset, search = search)
-
-            call.respond(ApiResponse(success = true, data = characters))
-        }
-
-        get("/character/{name}"){
-            val name = call.parameters["name"] ?: return@get call.respondText("Missing name parameter.", status = HttpStatusCode.BadRequest)
-
-            val character = CharacterService.getByName(name)
-
-            if(character != null)
-                call.respond(ApiResponse(success = true, data = character))
-            else
-                call.respond(status = HttpStatusCode.NotFound, message = ApiResponse<Unit>(success = false, message = "Character '$name' does not exist in the lore Bible! Get your brain checked first!"))
-        }
-
-        get("/characters/role/{roleName}"){
-            val roleName = call.parameters["roleName"]?.uppercase()
-
-            val role = try{
-                Role.valueOf(roleName ?: "")
-            } catch (e: IllegalArgumentException){
-                null
-            }
-
-            val page = call.parameters["page"]?.toIntOrNull() ?: 1
-            val size = call.parameters["size"]?.toIntOrNull() ?: 10
-            val offset = getOffset(page, size)
-
-            if(role != null){
-                val characters = CharacterService.getByRole(role, limit = size, offset = offset)
-                call.respond(ApiResponse(success = true, data = characters))
-            } else{
-                call.respond(status = HttpStatusCode.BadRequest, ApiResponse<Unit>(success = false, message = "Invalid Role! You are going to the shadow realm!"))
-            }
-
-        }
-
-        get("/stats/archetype"){
-            val stats = CharacterService.getByArchetypeCounts()
-            call.respond(status = HttpStatusCode.OK, message = ApiResponse(success = true, data = stats))
-        }
-
-        get("relationships/{name}"){
-            val charName = call.parameters["name"] ?: return@get call.respond(HttpStatusCode.BadRequest)
-
-            val relations = RelationshipService.getRelationships(charName)
-            call.respond(ApiResponse(success = true, data = relations))
-        }
-
-
         authenticate ("auth-jwt"){
 
+            //Get All Characters
+            get("/characters"){
+                //Extracting parameter with default here.
+                val page = call.parameters["page"]?.toIntOrNull() ?: 1
+                val size = call.parameters["size"]?.toIntOrNull() ?: 10
+                val search = call.parameters["search"]
+
+                //Calculate offset: (Page 1 starts at 0, page 2 starts at 10, etc...)
+                val offset = getOffset(page, size)
+
+                val userId = call.requireUserId()
+
+                val characters = CharacterService.getAll(limit = size, offset = offset, search = search, userId = userId)
+
+                call.respond(ApiResponse(success = true, data = characters))
+            }
+
+            //Get Character by its id
+            get("/character/{id}"){
+                val charId = call.parameters["id"]?.toIntOrNull() ?: throw BadRequestException()
+
+                val userId = call.requireUserId()
+
+                val character = CharacterService.getCharacterById(charId, userId)
+
+                if(character != null)
+                    call.respond(ApiResponse(success = true, data = character))
+                else
+                    call.respond(status = HttpStatusCode.NotFound, message = ApiResponse<Unit>(success = false, message = "Character '$charId' does not exist in the lore Bible! Get your brain checked first!"))
+            }
+
+            //Get Characters by their role
+            get("/characters/role/{roleName}"){
+                val roleName = call.parameters["roleName"]?.uppercase()
+
+                val role = try{
+                    Role.valueOf(roleName ?: "")
+                } catch (e: IllegalArgumentException){
+                    null
+                }
+
+                val page = call.parameters["page"]?.toIntOrNull() ?: 1
+                val size = call.parameters["size"]?.toIntOrNull() ?: 10
+                val offset = getOffset(page, size)
+
+                val userId = call.requireUserId()
+
+                if(role != null){
+                    val characters = CharacterService.getByRole(role, limit = size, offset = offset, userId = userId)
+                    call.respond(ApiResponse(success = true, data = characters))
+                } else{
+                    call.respond(status = HttpStatusCode.BadRequest, ApiResponse<Unit>(success = false, message = "Invalid Role! You are going to the shadow realm!"))
+                }
+
+            }
+
+            //Get total counts of each ArchType
+            get("/stats/archetype"){
+                val userId = call.requireUserId()
+                val stats = CharacterService.getByArchetypeCounts(userId)
+                call.respond(status = HttpStatusCode.OK, message = ApiResponse(success = true, data = stats))
+            }
+
+            //Get Relationship for the specified character
+            get("relationships/{id}"){
+                val charId = call.parameters["id"]?.toIntOrNull() ?: throw BadRequestException()
+
+                val userId = call.requireUserId()
+
+                val relations = RelationshipService.getRelationships(charId, userId)
+                call.respond(ApiResponse(success = true, data = relations))
+            }
+
+            //Get the audit logs for the user
             get("/audit-logs"){
-                val username = call.principal<JWTPrincipal>()
-                    ?.payload
-                    ?.getClaim("username")
-                    ?.asString()
+                val userId = call.requireUserId()
 
                 call.respond(
                     status = HttpStatusCode.OK,
-                    message = ApiResponse(success = true, data = username?.let{AuditService.getLogsForUser(it)}
+                    message = ApiResponse(success = true, data = AuditService.getLogsForUser(userId)
                     )
                 )
-
             }
 
-            get("/character/{name}/export") {
-                val name = call.parameters["name"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+            get("/character/{id}/feats"){
+                val charId = call.parameters["id"]?.toIntOrNull() ?: return@get call.respond(HttpStatusCode.BadRequest)
 
-                // 1. Try to get from Redis first (Super Fast!)
-                var character = RedisCacheManager.getCharacter(name)
+                val userId = call.requireUserId()
+
+                val feats = FeatServices.getFeatsByCharacterId(charId, userId)
+
+                if(feats.isEmpty()){
+                    return@get call.respond(
+                        HttpStatusCode.NotFound,
+                        ApiResponse<Unit>(success = false, message = "No feats found for character $charId")
+                    )
+                }
+
+                call.respond(
+                    ApiResponse(
+                        success = true,
+                        data = feats
+                    )
+                )
+            }
+
+            //Exporting the character for users
+            get("/character/{id}/export") {
+                val charId = call.parameters["id"]?.toIntOrNull() ?: throw BadRequestException()
+                val userId = call.requireUserId()
+
+                // 1. Try to get from Redis first (Super Fast since it's caching!)
+                var character = try {
+                    RedisCacheManager.getCharacter(charId = charId, userId = userId)
+                } catch (e: Exception){
+                    println("⚠ Redis is down, skipping cache...")
+                    null
+                }
+
 
                 // 2. If Redis is empty, go to the Database (Slower)
                 if (character == null) {
-                    character = CharacterService.getByName(name)
+                    character = CharacterService.getCharacterById(charId,userId)
 
                     // 3. Save it to Redis so next time is instant
                     if (character != null) {
@@ -175,29 +224,36 @@ fun Application.configureRouting() {
                 }
 
                 // 5. Build and Send the File
-                val markdown = ExportService.characterToMarkdown(character)
+                val markdown = ExportService.characterToMarkdown(character, userId)
                     ?: "# Error\nCharacter data could not be generated, Beep Boop!"
 
                 call.response.header(
                     HttpHeaders.ContentDisposition,
                     ContentDisposition.Attachment.withParameter(
                         ContentDisposition.Parameters.FileName,
-                        "${name.replace(" ", "_")}.md"
+                        "${(character.name).replace(" ", "_")}.md"
                     ).toString()
                 )
+
+                call.audit("EXPORTED CHARACTER LORE", userId)
 
                 call.respondText(markdown, ContentType.parse("text/markdown"))
             }
 
-            post("/relationships"){
-                val request = call.receive<RelationAdd>()
-                val success = RelationshipService.addRelationship(request)
 
-                if(success)
-                    call.respond(ApiResponse<Unit>(success = true, message = "Fate has been updated!" ))
+            post("/relationships"){
+                val userId = call.requireUserId()
+                val request = call.receive<RelationAdd>()
+                val success = RelationshipService.addRelationship(request, userId)
+
+                if(success) {
+                    call.audit("RELATIONSHIP TO CHARACTER ID:${request.targetId} ADDED" ,request.sourceId)
+
+                    call.respond(ApiResponse<Unit>(success = true, message = "Fate has been updated!"))
+                }
 
                 else
-                    call.respond(status = HttpStatusCode.NotFound, message = ApiResponse<Unit>(success = false, message = "Fated to be unfated lmao🤷"))
+                    call.respond(status = HttpStatusCode.NotFound, message = ApiResponse<Unit>(success = false, message = "Fated to be unfated lmao 🤷"))
             }
 
             post ("/character"){
@@ -241,13 +297,21 @@ fun Application.configureRouting() {
                         }
 
                         is PartData.FileItem -> {
+                            val contentType = part.contentType?.contentType + "/" + part.contentType?.contentSubtype
+
+                            if(part.contentType == null || contentType !in listOf("image/jpeg", "image/png", "image/webp"))
+                            {
+                                part.dispose()
+                                return@forEachPart
+                            }
                             //Here a new file is created for each new character added to avoid overwriting
                             fileName = "portrait_${System.currentTimeMillis()}.jpg"
-                            val fileBytes = part.streamProvider().use {
-                                input -> File("uploads/${fileName}").outputStream().use {
-                                    output -> input.copyTo(output)
+                            val fileBytes = part.provider().toInputStream().use { input ->
+                                File("uploads/$fileName").outputStream().use { output ->
+                                    input.copyTo(output)
+                                }
                             }
-                            }
+
                         }
                         else -> {}
                     }
@@ -257,52 +321,100 @@ fun Application.configureRouting() {
                 //We are getting the file name here to add in DB
                 val imageUrl = if( fileName.isNotEmpty()) "/uploads/$fileName" else null
 
-                CharacterService.addCharacter(Character(name = name, role = role, powerLevel = powerLevel, abilities = abilities, imageUrl = imageUrl, race = race, age = age, archetype = archetype, lore = lore))
+                val userId = call.requireUserId()
 
-                val userName = call.getUsername()
+                val charId = CharacterService.addCharacter(Character(name = name, role = role, powerLevel = powerLevel, abilities = abilities, imageUrl = imageUrl, race = race, age = age, archetype = archetype, lore = lore), userId)
 
-                if(userName != null) AuditService.logAction(userName, "CREATED", name)
+                call.audit("CHARACTER CREATED", charId)
 
                 call.respond(status = HttpStatusCode.Created, message = ApiResponse<Unit>(success = true, message = "The portrait of $name is archived!"))
             }
 
-            put("/character/{name}") {
-                val name = call.parameters["name"].toString()
-                val updatedData = call.receive<Character>()
+            //Updating the Feats for the specified Character
+            put("/character/{id}/feats"){
+                val charId = call.parameters["id"]?.toIntOrNull() ?: throw BadRequestException()
 
-                val result = CharacterService.update (name, updatedData)
+                val request = call.receive<FeatRequest>()
 
-                if (result) {
-                    val username = call.getUsername()
+                val userId = call.requireUserId()
 
-                    username?.let {
-                        AuditService.logAction(it, "UPDATED", name)
-                    }
-                    call.respond(
-                        status = HttpStatusCode.OK,
-                        message = ApiResponse<Unit>(success = true, message = "Updated model.character.Character Into Da Bible!",)
+                FeatServices.setFeat(charId, request, userId)
+
+                call.audit("UPSERTED FEATS",charId)
+
+                call.respond(
+                    status = HttpStatusCode.OK,
+                    message = ApiResponse<Unit>(
+                        success = true,
+                        message = "Feat updated for $charId at ${request.category} level 🔥"
                     )
-                }
-                else
-                    call.respond(status = HttpStatusCode.NotFound, message = ApiResponse<Unit>(success = false, message = "Character $name Sheet does not exist to update! Create first you moron!", ))
+                )
             }
 
-            delete("/character/{name}") {
-                val name = call.parameters["name"].toString()
-                val removed = CharacterService.delete(name)
+            //To update the new details given by the user about the specific character
+           patch("/character/{id}"){
+               val charId = call.parameters["id"]?.toIntOrNull() ?: throw BadRequestException()
+
+               val userId = call.getUserId() ?: return@patch call.respond(HttpStatusCode.Unauthorized)
+
+               val request = call.receive<CharacterUpdateRequest>()
+
+               val updated = CharacterService.updateById(charId, request, userId)
+
+               if(updated){
+                   call.audit("PATCHED CHARACTER",  charId)
+                   call.respond(HttpStatusCode.OK, ApiResponse<Unit>(success = true, message = "Character Ascended 🐦‍🔥"))
+               } else{
+                   call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(success = false, message = "Ascension Failed 🌠"))
+               }
+           }
+
+            //Delete the feats of specified character ID
+            delete("/character/{id}/feats/{category}"){
+                val charId = call.parameters["id"]?.toIntOrNull() ?: throw BadRequestException()
+
+                val categoryParam = call.parameters["category"]?.uppercase()
+
+                val userId = call.requireUserId()
+
+                val category = try{
+                    FeatLevel.valueOf(categoryParam ?: "")
+                } catch(e: Exception){
+                    null
+                }
+
+                if(category == null){
+                    return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(success = false, message = "Invalid feat Category my guy 😵"))
+                }
+
+                FeatServices.deleteFeat(charId, category, userId)
+
+                call.audit("DELETED FEATS",charId)
+
+                call.respond(
+                    ApiResponse<Unit>(
+                        success = true,
+                        message = "Feat removed for character id:$charId\nat $category level 🧹"
+                    )
+                )
+
+            }
+
+            //Delete the character with specified it
+            delete("/character/{id}") {
+                val charId = call.parameters["id"]?.toIntOrNull() ?: throw BadRequestException()
+                val userId = call.requireUserId()
+
+                val removed = CharacterService.deleteById(charId, userId)
 
                 if(removed) {
-                    val username = call.getUsername()
-
-                    username?.let {
-                        AuditService.logAction(it, "DELETED", name)
-                    }
+                    call.audit("DELETED CHARACTER", charId)
 
                     call.respond(
                         status = HttpStatusCode.OK,
                         message = ApiResponse<Unit>(
                             success = true,
-                            message = "Character $name has been erased from history!"
+                            message = "Character has been erased from Bible 😶‍🌫️!"
                         )
                     )
                 }
@@ -315,9 +427,22 @@ fun Application.configureRouting() {
 
 fun getOffset(page: Int, size: Int): Long = ((page - 1) * size).toLong()
 
+//For extracting the username from the token.
 fun ApplicationCall.getUsername(): String? {
     return this.principal<JWTPrincipal>()
         ?.payload
         ?.getClaim("username")
         ?.asString()
 }
+
+fun ApplicationCall.audit(action: String, charId: Int){
+    getUserId()?.let {
+        AuditService.logAction(it, action, charId)
+    }
+}
+
+fun ApplicationCall.getUserId(): Int? =
+    getUsername()?.let(UserService::getUserId)
+
+fun ApplicationCall.requireUserId(): Int =
+    getUserId() ?: throw UnauthorizedException("Invalid or expired Amulet, Begone Witch 🧙‍♂️!")

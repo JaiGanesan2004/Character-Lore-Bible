@@ -1,12 +1,11 @@
 package model.character
 
 import kotlinx.serialization.Serializable
-import model.character.Archetype
 import model.enums.Role
 
 @Serializable
 data class Character(
-    val id: Int? = null,
+    val id: Int = 0,
     val name:String,
     val role: Role,
     val powerLevel: Int?,
@@ -16,5 +15,6 @@ data class Character(
     val archetype: Archetype?,
     val race: String? = null,
     val age: Int? = null,
-    val lore: String? = null
+    val lore: String? = null,
+    val userId: Int = -1
 )

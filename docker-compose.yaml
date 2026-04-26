@@ -1,0 +1,49 @@
+services:
+
+  lore-redis:
+    image: redis:alpine
+    container_name: lore_bible_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - lore-network
+
+  lore-bible-app:
+    build: .
+    container_name: lore_bible_backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - lore-redis
+      - lore_bible_db
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=lore-redis #Service name used here for interservice communication
+      - REDIS_PORT=6379
+      - DB_URL=jdbc:postgresql://lore_bible_db:5432/lore_bible
+    networks:
+      - lore-network
+    volumes:
+      - ./uploads:/app/uploads #Data persistence even if container restarts
+
+  lore_bible_db:
+    image: postgres:16-alpine
+    container_name: lore_bible_db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: lore_bible
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - lore-network
+
+networks:
+  lore-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
