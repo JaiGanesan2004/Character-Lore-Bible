@@ -55,7 +55,7 @@ object RelationshipService {
                 RelationResponse(
                     targetName = targetName,
                     relationType = type,
-                    description = "${type.name} OR $targetName"
+                    description = "${type.name} OF $targetName"
                 )
 
 

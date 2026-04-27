@@ -19,6 +19,7 @@ import org.jetbrains.exposed.sql.lowerCase
 import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
+import java.io.File
 import java.time.LocalDateTime
 
 
@@ -162,12 +163,28 @@ object CharacterService {
         true
     }
 
-    fun deleteById(charId: Int, userId: Int): Boolean = transaction {
-        val row = CharacterTable.select { (CharacterTable.id eq charId) and (CharacterTable.userId eq userId) }.singleOrNull() ?: return@transaction false
+    fun deleteById(charId: Int, userId: Int): Pair<Boolean, String?> = transaction {
+        val row = CharacterTable.select { (CharacterTable.id eq charId) and (CharacterTable.userId eq userId) }.singleOrNull() ?: return@transaction Pair(false, null)
+
+        val imageUrl = row[CharacterTable.imageUrl]
+        val charName = row[CharacterTable.name]
+
         CharacterTable.deleteWhere { CharacterTable.id eq row[CharacterTable.id]}
-        true
+
+        imageUrl?.let{
+            val file = File("uploads/${it.substringAfterLast("/")}")
+            if(file.exists()) file.delete()
+        }
+
+        RedisCacheManager.evict(charId, userId)
+
+        Pair(true, charName)
     }
 
+    fun getCharacterNameById(userId: Int, charId: Int): String = transaction {
+        CharacterTable.select { (CharacterTable.id eq charId) and (CharacterTable.userId eq userId) }
+            .singleOrNull()?.get(CharacterTable.name) ?: return@transaction "Character with given ID does not exist"
+    }
 
     //Extension Function to Create character object from DB query result.
     fun ResultRow.toCharacter(abilities: List<String> = emptyList()) = Character(

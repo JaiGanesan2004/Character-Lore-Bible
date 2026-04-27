@@ -7,6 +7,7 @@ data class AuditEntry(
     val id: Int,
     val username: String,
     val action: String,
+    val charId: Int,
     val characterName: String,
     val timestamp: Long
 )

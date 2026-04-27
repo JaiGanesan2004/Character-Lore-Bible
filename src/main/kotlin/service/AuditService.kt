@@ -12,17 +12,18 @@ import org.jetbrains.exposed.sql.transactions.transaction
 
 object AuditService {
     //This function's main purpose is to Log the actions of users
-    fun logAction(userId: Int, action: String, charId: Int) = transaction {
+    fun logAction(userId: Int, action: String, charId: Int, charName: String) = transaction {
         AuditLogTable.insert {
             it[AuditLogTable.userId] = userId
             it[AuditLogTable.action] = action
             it[AuditLogTable.characterId] = charId
+            it[AuditLogTable.characterName] = charName
             it[AuditLogTable.timestamp] = System.currentTimeMillis()
         }
     }
 
     fun getLogsForUser(userId: Int): List<AuditEntry> = transaction {
-        (AuditLogTable innerJoin CharacterTable innerJoin UserTable)
+        (AuditLogTable innerJoin UserTable)
             .select { AuditLogTable.userId eq userId }
             .map { it.toAudit() }
     }
@@ -30,7 +31,7 @@ object AuditService {
     //This function is for the admin to view the logs
     //Future purpose method  in case I implement role based access.
     fun getAllLogs(): List<AuditEntry> = transaction {
-        (AuditLogTable innerJoin CharacterTable innerJoin UserTable).selectAll()
+        (AuditLogTable innerJoin UserTable).selectAll()
             .map { it.toAudit() }
     }
 
@@ -40,7 +41,8 @@ object AuditService {
         id = this[AuditLogTable.id],
         username = this[UserTable.username],
         action = this[AuditLogTable.action],
-        characterName = this[CharacterTable.name], // fetched via join
+        characterName = this[AuditLogTable.characterName], // fetched via join
+        charId = this[AuditLogTable.characterId],
         timestamp = this[AuditLogTable.timestamp]
     )
 }

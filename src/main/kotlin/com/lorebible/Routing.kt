@@ -235,7 +235,7 @@ fun Application.configureRouting() {
                     ).toString()
                 )
 
-                call.audit("EXPORTED CHARACTER LORE", userId)
+                AuditService.logAction(userId,"EXPORTED CHARACTER LORE", charId, character.name)
 
                 call.respondText(markdown, ContentType.parse("text/markdown"))
             }
@@ -246,8 +246,10 @@ fun Application.configureRouting() {
                 val request = call.receive<RelationAdd>()
                 val success = RelationshipService.addRelationship(request, userId)
 
+                val charName = CharacterService.getCharacterNameById(userId, request.sourceId)
+
                 if(success) {
-                    call.audit("RELATIONSHIP TO CHARACTER ID:${request.targetId} ADDED" ,request.sourceId)
+                    AuditService.logAction(userId,"RELATIONSHIP TO CHARACTER ID:${request.targetId} ADDED" ,request.sourceId, charName)
 
                     call.respond(ApiResponse<Unit>(success = true, message = "Fate has been updated!"))
                 }
@@ -325,7 +327,7 @@ fun Application.configureRouting() {
 
                 val charId = CharacterService.addCharacter(Character(name = name, role = role, powerLevel = powerLevel, abilities = abilities, imageUrl = imageUrl, race = race, age = age, archetype = archetype, lore = lore), userId)
 
-                call.audit("CHARACTER CREATED", charId)
+                AuditService.logAction(userId,"CHARACTER CREATED", charId, name)
 
                 call.respond(status = HttpStatusCode.Created, message = ApiResponse<Unit>(success = true, message = "The portrait of $name is archived!"))
             }
@@ -335,12 +337,12 @@ fun Application.configureRouting() {
                 val charId = call.parameters["id"]?.toIntOrNull() ?: throw BadRequestException()
 
                 val request = call.receive<FeatRequest>()
-
                 val userId = call.requireUserId()
+                val charName = CharacterService.getCharacterNameById(userId, charId)
 
                 FeatServices.setFeat(charId, request, userId)
 
-                call.audit("UPSERTED FEATS",charId)
+                AuditService.logAction(userId,"UPSERTED FEATS",charId, charName)
 
                 call.respond(
                     status = HttpStatusCode.OK,
@@ -362,7 +364,8 @@ fun Application.configureRouting() {
                val updated = CharacterService.updateById(charId, request, userId)
 
                if(updated){
-                   call.audit("PATCHED CHARACTER",  charId)
+                   val charName = CharacterService.getCharacterNameById(userId, charId)
+                   AuditService.logAction(userId,"PATCHED CHARACTER",  charId, charName )
                    call.respond(HttpStatusCode.OK, ApiResponse<Unit>(success = true, message = "Character Ascended 🐦‍🔥"))
                } else{
                    call.respond(HttpStatusCode.NotFound, ApiResponse<Unit>(success = false, message = "Ascension Failed 🌠"))
@@ -387,9 +390,10 @@ fun Application.configureRouting() {
                     return@delete call.respond(HttpStatusCode.BadRequest, ApiResponse<Unit>(success = false, message = "Invalid feat Category my guy 😵"))
                 }
 
+                val charName = CharacterService.getCharacterNameById(userId, charId)
                 FeatServices.deleteFeat(charId, category, userId)
 
-                call.audit("DELETED FEATS",charId)
+                AuditService.logAction(userId,"DELETED FEATS",charId, charName)
 
                 call.respond(
                     ApiResponse<Unit>(
@@ -407,8 +411,8 @@ fun Application.configureRouting() {
 
                 val removed = CharacterService.deleteById(charId, userId)
 
-                if(removed) {
-                    call.audit("DELETED CHARACTER", charId)
+                if(removed.first) {
+                    AuditService.logAction(userId,"DELETED CHARACTER", charId,removed.second!!)
 
                     call.respond(
                         status = HttpStatusCode.OK,
@@ -433,12 +437,6 @@ fun ApplicationCall.getUsername(): String? {
         ?.payload
         ?.getClaim("username")
         ?.asString()
-}
-
-fun ApplicationCall.audit(action: String, charId: Int){
-    getUserId()?.let {
-        AuditService.logAction(it, action, charId)
-    }
 }
 
 fun ApplicationCall.getUserId(): Int? =
