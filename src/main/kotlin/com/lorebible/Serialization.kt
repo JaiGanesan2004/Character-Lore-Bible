@@ -1,4 +1,4 @@
-package LoreBible.com.lorebible
+package com.lorebible
 
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*

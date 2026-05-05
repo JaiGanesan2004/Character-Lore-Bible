@@ -1,4 +1,4 @@
-package LoreBible.com.lorebible
+package com.lorebible
 
 import io.ktor.server.application.*
 import io.ktor.server.plugins.calllogging.*

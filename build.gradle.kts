@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.plugin.serialization)
 }
 
-group = "MusicPlayerServer"
+group = "LoreBible"
 version = "0.0.1"
 val ktor_version: String by project
 

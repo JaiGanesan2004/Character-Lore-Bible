@@ -22,6 +22,7 @@ services:
       - REDIS_HOST=lore-redis #Service name used here for interservice communication
       - REDIS_PORT=6379
       - DB_URL=jdbc:postgresql://lore_bible_db:5432/lore_bible
+      - BASE_URL=http://lore-bible-app:8080
     networks:
       - lore-network
     volumes:

@@ -3,6 +3,8 @@ package service
 import model.character.Character
 
 object ExportService {
+    val baseUrl = System.getenv("BASE_URL") ?: "http://localhost:8080"
+
 
     fun characterToMarkdown(character: Character, userId: Int): String?{
         val sb = StringBuilder()
@@ -14,7 +16,7 @@ object ExportService {
         sb.append("# 📜 Character Dossier: ${character.name}\n\n")
 
         if(!character.imageUrl.isNullOrEmpty()){
-            val fullImageUrl = "http://localhost:8080/${character.imageUrl}"
+            val fullImageUrl = "${baseUrl}/${character.imageUrl}"
             sb.append("![Character Portrait]($fullImageUrl)\n\n")
         }
 

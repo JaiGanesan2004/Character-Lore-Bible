@@ -5,7 +5,7 @@ import org.jetbrains.exposed.sql.Table
 object AuditLogTable: Table("audit_logs") {
     val id = integer("id").autoIncrement()
     val userId = integer("user_id").references (UserTable.id)
-    val action = varchar("event", 50)
+    val action = varchar("event", 150)
     val characterId = integer("character_id")
     val characterName = varchar("character_name", 250)
     val timestamp = long("timestamp")

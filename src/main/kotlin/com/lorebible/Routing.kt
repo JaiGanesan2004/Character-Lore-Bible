@@ -152,7 +152,7 @@ fun Application.configureRouting() {
             }
 
             //Get Relationship for the specified character
-            get("relationships/{id}"){
+            get("/relationships/{id}"){
                 val charId = call.parameters["id"]?.toIntOrNull() ?: throw BadRequestException()
 
                 val userId = call.requireUserId()
